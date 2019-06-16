@@ -54,7 +54,12 @@ func main() {
 
 	//欺骗浏览器  session index
 	rou.GET("/api/v1.0/session", handler.GetSession)
-	//session
+
+
+
+
+
+	//index
 	rou.GET("/api/v1.0/house/index", handler.GetIndex)
 
 

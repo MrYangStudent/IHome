@@ -11,6 +11,7 @@ import (
 	GETIMAGECD		"sss/GetImageCd/proto/example"
 	GETSMSCD		"sss/GetSmscd/proto/example"
 	POSTRET			"sss/PostRet/proto/example"
+	GETSESSION		"sss/GetSession/proto/example"
 	"sss/IhomeWeb/models"
 	"image"
 	"github.com/afocus/captcha"
@@ -345,16 +346,64 @@ func PostRet(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
 
 
 func GetSession(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
+	fmt.Println(" 登陆检查  GetSession  /api/v1.0/session")
+
+	//获取sessionid
+	cookie ,err :=r.Cookie("ihomelogin")
+
+	if err!=nil{
+		//准备返回给前端的map
+		response := map[string]interface{}{
+			"errno": "4101",
+			"errmsg": "用户未登录",
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+
+
+	//创建 grpc 客户端
+	cli :=grpc.NewService()
+	//客户端初始化
+	cli.Init()
+
+	// call the backend service
+	//通过protobuf 生成文件 创建 连接服务端 的客户端句柄
+	exampleClient := GETSESSION.NewExampleService("go.micro.srv.GetSession", cli.Client())
+	//通过句柄调用服务端函数
+	rsp, err := exampleClient.GetSession(context.TODO(), &GETSESSION.Request{
+		Sessionid:cookie.Value,
+	})
+	//判断是否成功
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//将名字 接收到
+
+	data := make(map[string]string)
+	data["name"]=rsp.Name
+
 
 	// we want to augment the response
 	//准备返回给前端的map
 	response := map[string]interface{}{
-		"errno": "4101",
-		"errmsg": "用户未登录",
+		"errno": rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":data,
 	}
 	// encode and write the response as json
 		//设置返回数据的格式
-		w.Header().Set("Content-Type","application/json")
+	w.Header().Set("Content-Type","application/json")
 	//将map转化为json 返回给前端
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, err.Error(), 500)
