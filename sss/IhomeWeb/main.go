@@ -54,6 +54,17 @@ func main() {
 
 	//欺骗浏览器  session index
 	rou.GET("/api/v1.0/session", handler.GetSession)
+	//登陆服务
+	rou.POST("/api/v1.0/sessions", handler.PostLogin)
+	//退出登陆
+	rou.DELETE("/api/v1.0/session",handler.DeleteSession)
+
+
+
+	//获取用户信息
+	rou.GET("/api/v1.0/user", handler.GetUserInfo)
+
+
 
 
 
