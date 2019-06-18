@@ -47,7 +47,6 @@ func RedisOpen( server_name,redis_addr,redis_port,redis_dbnum string)(bm  cache.
 
 func Getmd5string(s string)string{
 	m :=md5.New()
-
 	return  hex.EncodeToString(m.Sum([]byte(s)))
 }
 
