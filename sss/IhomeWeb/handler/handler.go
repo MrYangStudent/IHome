@@ -15,11 +15,15 @@ import (
 	POSTLOGIN		"sss/PostLogin/proto/example"
 	DELETESESSION	"sss/DeleteSession/proto/example"
 	GETUSERINFO		"sss/GetUserInfo/proto/example"
+	POSTAVATAR		"sss/PostAvatar/proto/example"
+	PUTUSERINFO		"sss/PutUserInfo/proto/example"
+	POSTUSERAUTH	"sss/PostUserAuth/proto/example"
 	"sss/IhomeWeb/models"
 	"image"
 	"github.com/afocus/captcha"
 	"image/png"
 	"sss/IhomeWeb/utils"
+
 )
 //模板
 //路由解析函数  （ 传出给前端  ，  传入 前端发送过来的  ， 解析路由请求参数  ）
@@ -666,6 +670,393 @@ func GetUserInfo(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
 		return
 	}
 }
+
+
+func PostAvatar(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
+	fmt.Println(" 上传头像  PostAvatar  /api/v1.0/user/avatar ")
+
+	//接受前端发送过来的二进制 图片数据
+
+	File, FileHeader, err := r.FormFile("avatar")
+	if err !=nil{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_IOERR,
+			"errmsg": utils.RecodeText(utils.RECODE_IOERR),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+	/*TODO  可以进行 文件类型判断 */
+	//获取 文件的基本信息
+	fmt.Println("文件名",FileHeader.Filename)
+	fmt.Println("文件大小",FileHeader.Size)
+
+	//创建1个二进制的空间
+	filebuffer :=make([]byte,FileHeader.Size)
+
+	//把接受或来的文件 读如二进制空间
+	_ ,err = File.Read(filebuffer)
+	if err!=nil{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_IOERR,
+			"errmsg": utils.RecodeText(utils.RECODE_IOERR),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+
+	//获取sessionid
+	cookie ,err :=r.Cookie("ihomelogin")
+	if err!=nil ||cookie.Value ==""{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+	//创建 grpc 客户端
+	cli :=grpc.NewService()
+	//客户端初始化
+	cli.Init()
+
+	// call the backend service
+	//通过protobuf 生成文件 创建 连接服务端 的客户端句柄
+	exampleClient := POSTAVATAR.NewExampleService("go.micro.srv.PostAvatar", cli.Client())
+	//通过句柄调用服务端函数
+	rsp, err := exampleClient.PostAvatar(context.TODO(), &POSTAVATAR.Request{
+		Sessionid:cookie.Value,
+		Buffer:filebuffer,
+		Filename:FileHeader.Filename,
+		Filesize:FileHeader.Size,
+	})
+	//判断是否成功
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+
+	//接受返回数据  拼接url
+	data :=make(map[string]string)
+	data["avatar_url"] = utils.AddDomain2Url(rsp.Fileid)
+
+	// we want to augment the response
+	//准备返回给前端的map
+	response := map[string]interface{}{
+		"errno": rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":data,
+	}
+	// encode and write the response as json
+		//设置返回数据的格式
+	w.Header().Set("Content-Type","application/json")
+	//将map转化为json 返回给前端
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+
+
+
+func PutUserInfo(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
+	fmt.Println("更新用户名   PutUserInfo   /api/v1.0/user/name")
+
+	// decode the incoming request as json
+	//接受 前端发送过来数据的
+	var request map[string]interface{}
+	// 将前端 json 数据解析到 map当中
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	//参数校验
+	if request["name"].(string) == ""{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_NODATA,
+			"errmsg": utils.RecodeText(utils.RECODE_NODATA),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+
+	//获取sessionid
+	cookie ,err :=r.Cookie("ihomelogin")
+	if err!= nil{
+
+		response := map[string]interface{}{
+			"errno": utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+
+
+	//创建 grpc 客户端
+	cli :=grpc.NewService()
+	//客户端初始化
+	cli.Init()
+
+	// call the backend service
+	//通过protobuf 生成文件 创建 连接服务端 的客户端句柄
+	exampleClient := PUTUSERINFO.NewExampleService("go.micro.srv.PutUserInfo", cli.Client())
+	//通过句柄调用服务端函数
+	rsp, err := exampleClient.PutUserInfo(context.TODO(), &PUTUSERINFO.Request{
+		Name:request["name"].(string),
+		Sessionid:cookie.Value,
+	})
+	//判断是否成功
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//重新设置 cookie的时间
+	//登陆的时候 600妙
+	//时间消耗  300
+	//进行了操作 刷新世界 将时间再次恢复到600
+	cookienew  :=http.Cookie{Name:"ihomelogin",Value:cookie.Value,Path:"/",MaxAge:600}
+
+	http.SetCookie(w,&cookienew)
+
+	//接受返回数据
+	data :=make(map[string]string)
+	data["name"] = rsp.Name
+	// we want to augment the response
+	//准备返回给前端的map
+	response := map[string]interface{}{
+		"errno": rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":data,
+	}
+	// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+	//将map转化为json 返回给前端
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+
+
+func GetUserAuth(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
+
+	fmt.Println("获取用户信息 GetUserAuth /api/v1.0/user/auth")
+	//获取cookie当中的sessionid
+	cookie,err :=r.Cookie("ihomelogin")
+	if err!=nil||cookie.Value==""{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+
+
+	//创建 grpc 客户端
+	cli :=grpc.NewService()
+	//客户端初始化
+	cli.Init()
+
+	// call the backend service
+	//通过protobuf 生成文件 创建 连接服务端 的客户端句柄
+	exampleClient := GETUSERINFO.NewExampleService("go.micro.srv.GetUserInfo", cli.Client())
+	//通过句柄调用服务端函数
+	rsp, err := exampleClient.GetUserInfo(context.TODO(), &GETUSERINFO.Request{
+		Sessionid:cookie.Value,
+	})
+	//判断是否成功
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//接受数据
+
+	//"user_id": 1,
+	//"name": "Panda",
+	//"mobile": "110",
+	//"real_name": "熊猫",
+	//"id_card": "210112244556677",
+	//"avatar_url":
+	data := make(map[string]interface{})
+	data["user_id"] = rsp.UserId
+	data["name"] = rsp.Name
+	data["mobile"] = rsp.Mobile
+	data["real_name"] = rsp.RealName
+	data["id_card"] = rsp.IdCard
+	data["avatar_url"] = utils.AddDomain2Url(rsp.AvatarUrl)
+
+	// we want to augment the response
+	//准备返回给前端的map
+	response := map[string]interface{}{
+		"errno": rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":data,
+	}
+	// encode and write the response as json
+	//设置返回数据的格式
+	w.Header().Set("Content-Type","application/json")
+	//将map转化为json 返回给前端
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+
+
+func PostUserAuth(w http.ResponseWriter, r *http.Request,ps httprouter.Params) {
+
+	fmt.Println(" 实名认证服务  PostUserAuth   /api/v1.0/user/auth  ")
+
+
+	// decode the incoming request as json
+	//接受 前端发送过来数据的
+	var request map[string]interface{}
+	// 将前端 json 数据解析到 map当中
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	/*  real_name: "熊猫",
+    id_card:
+	*/
+
+	//数据校验
+	if request["real_name"].(string) ==""|| request["id_card"].(string) ==""{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_NODATA,
+			"errmsg": utils.RecodeText(utils.RECODE_NODATA),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+	/*TODO  需要对身份证号 进行 正则 校验 */
+
+
+	//获取sessionid
+	cookie ,err :=r.Cookie("ihomelogin")
+	if err!=nil||cookie.Value==""{
+		response := map[string]interface{}{
+			"errno": utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		// encode and write the response as json
+		//设置返回数据的格式
+		w.Header().Set("Content-Type","application/json")
+		//将map转化为json 返回给前端
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+
+	//创建 grpc 客户端
+	cli :=grpc.NewService()
+	//客户端初始化
+	cli.Init()
+
+	// call the backend service
+	//通过protobuf 生成文件 创建 连接服务端 的客户端句柄
+	exampleClient := POSTUSERAUTH.NewExampleService("go.micro.srv.PostUserAuth", cli.Client())
+	//通过句柄调用服务端函数
+	rsp, err := exampleClient.PostUserAuth(context.TODO(), &POSTUSERAUTH.Request{
+		Idcard:request["id_card"].(string),
+		Realname:request["real_name"].(string)  ,
+		Sessionid:cookie.Value,
+	})
+	//判断是否成功
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+
+	//刷新cookie的时间
+	cookienew :=http.Cookie{Name:"ihomelogin", Value:cookie.Value ,Path:"/",MaxAge:600}
+
+	http.SetCookie(w,&cookienew)
+
+
+	// we want to augment the response
+	//准备返回给前端的map
+	response := map[string]interface{}{
+		"errno": rsp.Errno,
+		"errmsg": rsp.Errmsg,
+	}
+	// encode and write the response as json
+		//设置返回数据的格式
+	w.Header().Set("Content-Type","application/json")
+	//将map转化为json 返回给前端
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
 
 
 

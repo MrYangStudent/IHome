@@ -9,6 +9,7 @@ import (
 	_ "github.com/gomodule/redigo/redis"
 	"crypto/md5"
 	"encoding/hex"
+	"github.com/weilaihui/fdfs_client"
 )
 
 /* 将url加上 http://IP:PROT/  前缀 */
@@ -51,5 +52,28 @@ func Getmd5string(s string)string{
 }
 
 
+//fastdfs 上传 操作 (二进制 文件 ，后缀名)（fileid ，err）
+
+func Uploadbybuf(file []byte ,Extname string)(fileid string ,err error) {
+//	读取配置文件 创建fdfs句柄
+	fdfsclient ,err :=fdfs_client.NewFdfsClient("/home/itcast/go/src/sss/IhomeWeb/conf/client.conf")
+	if err!=nil{
+		fmt.Println("fdfs_client.NewFdfsClient 创建失败",err)
+		return  "",err
+	}
+
+// 	上传文件
+	rsp  ,err :=fdfsclient.UploadByBuffer(file  ,Extname)
+	if err!=nil{
+		fmt.Println("fdfsclient.UploadByBuffer 上传 失败",err)
+
+		return  "",err
+	}
+
+	fmt.Println("GroupName:",rsp.GroupName , "Fileid:",rsp.RemoteFileId)
+
+//	返回fileid
+	return  rsp.RemoteFileId,nil
+}
 
 // 后续还会添加
